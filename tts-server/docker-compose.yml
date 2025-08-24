@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  tts-server:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./reference_voice.wav:/app/reference_voice.wav  # Mount your reference voice file
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
