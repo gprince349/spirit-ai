@@ -13,7 +13,7 @@ import gc
 app = FastAPI(title="Custom TTS API", version="1.0.0")
 
 # Configuration
-REFERENCE_VOICE = "ashish.wav"  # Your fixed reference
+REFERENCE_VOICE = "piyush.wav"  # Your fixed reference
 DEFAULT_LANGUAGE = "hi"
 DEFAULT_MODEL = "tts_models/multilingual/multi-dataset/xtts_v2"
 
