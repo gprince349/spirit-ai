@@ -1,0 +1,24 @@
+# Core RAG Components
+sentence-transformers
+faiss-cpu
+chromadb
+PyMuPDF
+numpy
+
+# LLM Integration
+openai
+google-generativeai
+
+# Data Processing
+pandas
+scikit-learn
+
+# API and Web Framework
+fastapi
+uvicorn
+python-multipart
+
+# Utilities
+python-dotenv
+tqdm
+click
