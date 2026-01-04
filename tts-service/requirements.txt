@@ -1,0 +1,15 @@
+# Core dependencies
+fastapi>=0.128.0
+uvicorn[standard]>=0.39.0
+pydantic>=2.12.0
+python-multipart>=0.0.20
+websockets>=15.0.0
+
+# For Modal deployment
+modal>=1.2.0
+
+# For audio processing (MegaTTS3 provider - uncomment when needed)
+# numpy>=1.24.0
+# torch>=2.0.0
+# torchaudio>=2.0.0
+

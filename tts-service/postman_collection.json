@@ -1,0 +1,159 @@
+{
+  "info": {
+    "name": "TTS Service API",
+    "description": "Text-to-Speech Service with voice cloning support",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8002",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health & Info",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Check service health and provider status"
+          }
+        },
+        {
+          "name": "Get Voices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/voices",
+              "host": ["{{base_url}}"],
+              "path": ["voices"]
+            },
+            "description": "List available voices and languages"
+          }
+        }
+      ]
+    },
+    {
+      "name": "TTS Generation",
+      "item": [
+        {
+          "name": "Generate Speech (WAV Stream)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hello world, this is a test of the TTS service.\",\n  \"voice\": \"osho\",\n  \"language\": \"en\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tts",
+              "host": ["{{base_url}}"],
+              "path": ["tts"]
+            },
+            "description": "Generate speech and return WAV audio as streaming response. Save response as .wav file to play."
+          }
+        },
+        {
+          "name": "Generate Speech (JSON/Base64)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"My beloved friend, meditation is the key to inner peace.\",\n  \"voice\": \"osho\",\n  \"language\": \"en\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tts/json",
+              "host": ["{{base_url}}"],
+              "path": ["tts", "json"]
+            },
+            "description": "Generate speech and return base64 encoded audio in JSON response"
+          }
+        },
+        {
+          "name": "Generate Hindi Speech",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"प्रेम ही जीवन का सार है।\",\n  \"voice\": \"osho\",\n  \"language\": \"hi\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tts/json",
+              "host": ["{{base_url}}"],
+              "path": ["tts", "json"]
+            },
+            "description": "Generate Hindi speech with Osho voice"
+          }
+        },
+        {
+          "name": "Generate Long Text",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"My friend, the question of love is a question that has puzzled humanity for centuries. Love is not what you think it is. It is not a relationship, not a feeling, not an emotion. Love is a state of being. It is the fragrance that arises when the flower of your being blooms.\",\n  \"voice\": \"osho\",\n  \"language\": \"en\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tts/json",
+              "host": ["{{base_url}}"],
+              "path": ["tts", "json"]
+            },
+            "description": "Generate longer text to test audio duration scaling"
+          }
+        }
+      ]
+    },
+    {
+      "name": "WebSocket",
+      "item": [
+        {
+          "name": "WebSocket TTS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/ws/tts",
+              "host": ["{{base_url}}"],
+              "path": ["ws", "tts"]
+            },
+            "description": "WebSocket endpoint for real-time TTS.\n\nConnect and send:\n{\"text\": \"Hello world\", \"voice\": \"osho\", \"language\": \"en\"}\n\nReceive:\n{\"type\": \"audio\", \"data\": \"<base64>\", \"duration_ms\": 500}\n\nNote: Use Postman's WebSocket feature or a tool like wscat to test."
+          }
+        }
+      ]
+    }
+  ]
+}
+

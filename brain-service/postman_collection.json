@@ -1,0 +1,238 @@
+{
+	"info": {
+		"_postman_id": "spirit-ai-brain-service",
+		"name": "Spirit AI - Brain Service",
+		"description": "RAG + LLM API for Osho AI assistant.\n\n## Quick Start\n1. Set the `base_url` variable to your server URL (default: http://localhost:8000)\n2. Run the Health Check to verify connection\n3. Use the Query endpoint to ask questions\n\n## WebSocket\nFor streaming responses, use the WebSocket endpoint `/ws/chat` with a WebSocket client.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Health & Status",
+			"description": "Endpoints to check service health and statistics",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": ["{{base_url}}"],
+							"path": ["health"]
+						},
+						"description": "Check if the Brain Service is healthy and the index is loaded."
+					},
+					"response": [
+						{
+							"name": "Healthy Response",
+							"originalRequest": {
+								"method": "GET",
+								"url": {
+									"raw": "{{base_url}}/health",
+									"host": ["{{base_url}}"],
+									"path": ["health"]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"body": "{\n    \"status\": \"healthy\",\n    \"ready\": true,\n    \"index_loaded\": true,\n    \"total_chunks\": 1250\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Statistics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/stats",
+							"host": ["{{base_url}}"],
+							"path": ["stats"]
+						},
+						"description": "Get detailed statistics about the RAG service including retriever info and LLM configuration."
+					},
+					"response": [
+						{
+							"name": "Stats Response",
+							"originalRequest": {
+								"method": "GET",
+								"url": {
+									"raw": "{{base_url}}/stats",
+									"host": ["{{base_url}}"],
+									"path": ["stats"]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"body": "{\n    \"retriever\": {\n        \"total_vectors\": 1250,\n        \"total_chunks\": 1250,\n        \"embedding_model\": \"sentence-transformers/all-MiniLM-L6-v2\",\n        \"embedding_dimension\": 384\n    },\n    \"llm\": {\n        \"provider\": \"groq\",\n        \"model\": \"llama-3.1-70b-versatile\"\n    },\n    \"ready\": true\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "RAG Queries",
+			"description": "Query the RAG system with questions",
+			"item": [
+				{
+					"name": "Query - Basic",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"question\": \"What is meditation?\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/query",
+							"host": ["{{base_url}}"],
+							"path": ["query"]
+						},
+						"description": "Basic query with just a question. Uses default settings (top_k=5, auto language detection)."
+					},
+					"response": [
+						{
+							"name": "Query Response",
+							"originalRequest": {
+								"method": "POST",
+								"url": {
+									"raw": "{{base_url}}/query",
+									"host": ["{{base_url}}"],
+									"path": ["query"]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"body": "{\n    \"answer\": \"Meditation is not concentration, it is exactly the opposite. Concentration means focusing the mind on one point, whereas meditation means relaxing the mind, unfocusing it...\",\n    \"sources\": [\n        {\n            \"text\": \"Meditation is not concentration...\",\n            \"score\": 0.8542,\n            \"metadata\": {\n                \"source\": \"01. AV-E-01.01.1979.pdf\",\n                \"chunk_index\": 12\n            }\n        }\n    ],\n    \"timings\": {\n        \"retrieval_ms\": 25.3,\n        \"llm_ms\": 156.7,\n        \"total_ms\": 182.0\n    },\n    \"language\": \"en\",\n    \"model\": \"llama-3.1-70b-versatile\",\n    \"provider\": \"groq\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Query - With Options",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"question\": \"How can I find inner peace?\",\n    \"top_k\": 10,\n    \"language\": \"en\",\n    \"include_sources\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/query",
+							"host": ["{{base_url}}"],
+							"path": ["query"]
+						},
+						"description": "Query with all options specified:\n- top_k: Number of documents to retrieve (1-20)\n- language: 'en', 'hi', 'bilingual', or null for auto-detect\n- include_sources: Whether to include source documents"
+					},
+					"response": []
+				},
+				{
+					"name": "Query - Hindi",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"question\": \"ध्यान क्या है?\",\n    \"language\": \"hi\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/query",
+							"host": ["{{base_url}}"],
+							"path": ["query"]
+						},
+						"description": "Query in Hindi with Hindi language setting."
+					},
+					"response": []
+				},
+				{
+					"name": "Query - Bilingual",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"question\": \"What is the meaning of life? जीवन का अर्थ क्या है?\",\n    \"language\": \"bilingual\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/query",
+							"host": ["{{base_url}}"],
+							"path": ["query"]
+						},
+						"description": "Query with mixed English/Hindi, using bilingual mode."
+					},
+					"response": []
+				},
+				{
+					"name": "Query - No Sources",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"question\": \"What is love?\",\n    \"include_sources\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/query",
+							"host": ["{{base_url}}"],
+							"path": ["query"]
+						},
+						"description": "Query without returning source documents (faster response)."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "WebSocket (Info)",
+			"description": "WebSocket endpoint documentation",
+			"item": [
+				{
+					"name": "WebSocket Chat Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/ws/chat",
+							"host": ["{{base_url}}"],
+							"path": ["ws", "chat"]
+						},
+						"description": "## WebSocket Streaming Endpoint\n\n**URL:** `ws://localhost:8000/ws/chat`\n\n### Protocol\n\n**Client sends:**\n```json\n{\n    \"question\": \"What is meditation?\",\n    \"top_k\": 5,\n    \"language\": \"en\"\n}\n```\n\n**Server responds with multiple messages:**\n\n1. Sources (first):\n```json\n{\n    \"type\": \"sources\",\n    \"sources\": [...],\n    \"retrieval_ms\": 25.3\n}\n```\n\n2. Tokens (streamed):\n```json\n{\n    \"type\": \"token\",\n    \"token\": \"Meditation\"\n}\n```\n\n3. Done (final):\n```json\n{\n    \"type\": \"done\",\n    \"full_response\": \"Meditation is...\",\n    \"timings\": {...},\n    \"language\": \"en\",\n    \"model\": \"llama-3.1-70b-versatile\",\n    \"provider\": \"groq\"\n}\n```\n\n### Testing with wscat\n\n```bash\n# Install wscat\nnpm install -g wscat\n\n# Connect\nwscat -c ws://localhost:8000/ws/chat\n\n# Send message\n{\"question\": \"What is meditation?\"}\n```\n\n### Testing with Python\n\n```python\nimport asyncio\nimport websockets\nimport json\n\nasync def test_ws():\n    async with websockets.connect('ws://localhost:8000/ws/chat') as ws:\n        await ws.send(json.dumps({\"question\": \"What is meditation?\"}))\n        async for message in ws:\n            data = json.loads(message)\n            if data['type'] == 'token':\n                print(data['token'], end='', flush=True)\n            elif data['type'] == 'done':\n                print(f\"\\n\\nTotal time: {data['timings']['total_ms']}ms\")\n                break\n\nasyncio.run(test_ws())\n```"
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
+
