@@ -40,18 +40,17 @@ class Settings(BaseSettings):
     # ==========================================================================
     LLM_PROVIDER: Literal["groq", "openai"] = "groq"
 
-    # Groq (Primary - fastest)
+    # Groq
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
-    # Alternatives: "llama-3.1-8b-instant" (faster), "llama3-70b-8192"
 
-    # OpenAI (Fallback)
+    # OpenAI
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"
 
     # Generation settings
     LLM_TEMPERATURE: float = 0.7
-    LLM_MAX_TOKENS: int = 1024
+    LLM_MAX_TOKENS: int = 100  # Shorter responses for voice (300 ~ 2-3 sentences)
 
     # ==========================================================================
     # Server

@@ -211,4 +211,21 @@ config.json
 .env.production
 
 # Docker
-.dockerignore
+# .dockerignore - keep these, they're useful
+
+# Node.js / Next.js
+node_modules/
+.next/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+
+# Test files
+test_*.py
+test_*.wav
+
+# Local data (too large for git)
+brain-service/data/
+
+# Others folder (temporary experiments)
+others/

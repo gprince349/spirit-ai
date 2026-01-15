@@ -1,0 +1,66 @@
+# Docker Compose for Spirit AI Services
+# 
+# Setup:
+#   1. Copy env.example to .env and fill in your values
+#   2. Run: docker-compose up --build
+#
+# Services:
+#   - brain-service:8000  - RAG + LLM
+#   - orchestrator:8001   - WebSocket coordinator  
+#   - tts-service:8002    - TTS wrapper
+
+services:
+  brain-service:
+    build: ./brain-service
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+    volumes:
+      - ./brain-service/data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  tts-service:
+    build: ./tts-service
+    ports:
+      - "8002:8002"
+    env_file: .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8002
+    volumes:
+      - ./tts-service/voices:/app/voices
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8002/health').raise_for_status()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  orchestrator:
+    build: ./orchestrator
+    ports:
+      - "8001:8001"
+    env_file: .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8001
+      # Docker internal DNS
+      - BRAIN_URL=http://brain-service:8000
+      - TTS_URL=http://tts-service:8002
+    depends_on:
+      brain-service:
+        condition: service_healthy
+      tts-service:
+        condition: service_healthy
+
+networks:
+  default:
+    name: spirit-ai-network

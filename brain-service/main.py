@@ -6,6 +6,7 @@ from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from config import settings
@@ -18,21 +19,17 @@ from src.vector_store import vector_store
 # =============================================================================
 
 class QueryRequest(BaseModel):
-    """Request model for /query endpoint."""
-    question: str = Field(..., description="The question to ask Osho")
-    top_k: int = Field(default=5, ge=1, le=20, description="Number of documents to retrieve")
-    language: Optional[str] = Field(default=None, description="Response language: 'en', 'hi', 'bilingual', or None for auto-detect")
-    include_sources: bool = Field(default=True, description="Include source documents in response")
+    """Request model for /query and /query/stream endpoints."""
+    query: str = Field(..., description="The user's query/question")
+    language: str = Field(default="en", description="Response language: 'en' or 'hi'")
+    session_id: Optional[str] = Field(default=None, description="Session ID for conversation history (future use)")
 
 
 class QueryResponse(BaseModel):
     """Response model for /query endpoint."""
+    type: str = "response"
     answer: str
-    sources: Optional[list] = None
-    timings: dict
     language: str
-    model: str
-    provider: str
 
 
 class HealthResponse(BaseModel):
@@ -135,7 +132,7 @@ async def query(request: QueryRequest):
     """
     Query the RAG system (non-streaming).
     
-    Returns a complete response with sources and timing information.
+    Returns a complete response with timing information.
     """
     rag_chain = get_rag_chain()
     
@@ -147,62 +144,81 @@ async def query(request: QueryRequest):
     
     try:
         result = await rag_chain.query(
-            question=request.question,
-            top_k=request.top_k,
+            question=request.query,
             language=request.language,
-            include_sources=request.include_sources
+            include_sources=False
         )
-        return QueryResponse(**result)
+        return QueryResponse(
+            answer=result["answer"],
+            language=result["language"]
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# =============================================================================
-# Sentence Buffer for TTS
-# =============================================================================
-
-class SentenceBuffer:
-    """Buffer tokens into complete sentences for TTS."""
+@app.post("/query/stream")
+async def query_stream(request: QueryRequest):
+    """
+    SSE streaming endpoint for orchestrator consumption.
     
-    def __init__(self, min_chars: int = 30):
-        self.buffer = ""
-        self.min_chars = min_chars
-        self.sentence_endings = {'.', '!', '?', '।'}  # Including Hindi purna viram
-        self.pause_markers = {'...', '—', '–'}
+    Returns Server-Sent Events with tokens as they are generated.
     
-    def add(self, token: str) -> Optional[str]:
-        """Add token, return sentence if complete."""
-        self.buffer += token
-        
-        # Check for sentence endings
-        for i, char in enumerate(self.buffer):
-            if char in self.sentence_endings:
-                # Check if followed by space or end of buffer
-                if i + 1 >= len(self.buffer) or self.buffer[i + 1] in ' \n':
-                    sentence = self.buffer[:i + 1].strip()
-                    # Only return if we have enough content
-                    if len(sentence) >= self.min_chars:
-                        self.buffer = self.buffer[i + 1:].lstrip()
-                        return sentence
-        
-        # Check for pause markers (like "...")
-        for marker in self.pause_markers:
-            if marker in self.buffer:
-                idx = self.buffer.index(marker) + len(marker)
-                sentence = self.buffer[:idx].strip()
-                if len(sentence) >= self.min_chars:
-                    self.buffer = self.buffer[idx:].lstrip()
-                    return sentence
-        
-        return None
+    Event types:
+    - event: token  -> data: {"token": "...", "index": 0}
+    - event: done   -> data: {"total_tokens": N, "finish_reason": "stop"}
+    - event: error  -> data: {"error": "...", "code": "..."}
+    """
+    rag_chain = get_rag_chain()
     
-    def flush(self) -> Optional[str]:
-        """Get remaining buffer content."""
-        if self.buffer.strip():
-            remaining = self.buffer.strip()
-            self.buffer = ""
-            return remaining
-        return None
+    if not rag_chain.is_ready():
+        async def error_generator():
+            error_data = json.dumps({
+                "type": "error",
+                "message": "Index not loaded",
+                "code": "INDEX_ERROR"
+            })
+            yield f"event: error\ndata: {error_data}\n\n"
+        return StreamingResponse(error_generator(), media_type="text/event-stream")
+    
+    async def event_generator():
+        token_index = 0
+        try:
+            async for chunk in rag_chain.stream(
+                question=request.query,
+                language=request.language
+            ):
+                if chunk["type"] == "token":
+                    token_data = json.dumps({
+                        "type": "token",
+                        "token": chunk["token"],
+                        "index": token_index
+                    })
+                    yield f"event: token\ndata: {token_data}\n\n"
+                    token_index += 1
+                elif chunk["type"] == "done":
+                    done_data = json.dumps({
+                        "type": "done",
+                        "total_tokens": token_index,
+                        "finish_reason": "stop"
+                    })
+                    yield f"event: done\ndata: {done_data}\n\n"
+        except Exception as e:
+            error_data = json.dumps({
+                "type": "error",
+                "message": str(e),
+                "code": "LLM_ERROR"
+            })
+            yield f"event: error\ndata: {error_data}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
 
 
 # =============================================================================
@@ -215,19 +231,12 @@ async def websocket_chat(websocket: WebSocket):
     WebSocket endpoint for streaming chat.
     
     Protocol:
-    - Client sends: {"question": "...", "top_k": 5, "language": "en", "stream_mode": "sentence"}
-    - stream_mode: "token" (default, individual tokens) or "sentence" (buffered for TTS)
+    - Client sends: {"query": "...", "language": "en", "session_id": "optional"}
     
-    Response (sentence mode - for TTS):
-    - Server sends: {"type": "sources", "sources": [...]}
-    - Server sends: {"type": "sentence", "text": "Complete sentence.", "index": 0}
-    - Server sends: {"type": "sentence", "text": "Another sentence.", "index": 1}
-    - Server sends: {"type": "done", "full_response": "...", "timings": {...}}
-    
-    Response (token mode - raw):
-    - Server sends: {"type": "sources", "sources": [...]}
-    - Server sends: {"type": "token", "token": "..."} (multiple)
-    - Server sends: {"type": "done", "full_response": "...", "timings": {...}}
+    Response:
+    - Server sends: {"type": "token", "token": "...", "index": 0}
+    - Server sends: {"type": "done", "total_tokens": N, "finish_reason": "stop"}
+    - Server sends: {"type": "error", "message": "...", "code": "..."}
     """
     await websocket.accept()
     
@@ -238,72 +247,52 @@ async def websocket_chat(websocket: WebSocket):
             # Receive query from client
             data = await websocket.receive_json()
             
-            question = data.get("question", "")
-            top_k = data.get("top_k", settings.TOP_K)
-            language = data.get("language", None)
-            stream_mode = data.get("stream_mode", "sentence")  # "token" or "sentence"
+            query = data.get("query", "")
+            language = data.get("language", "en")
+            # session_id = data.get("session_id")  # For future use
             
-            if not question:
+            if not query:
                 await websocket.send_json({
                     "type": "error",
-                    "message": "Question is required"
+                    "message": "Query is required",
+                    "code": "VALIDATION_ERROR"
                 })
                 continue
             
             if not rag_chain.is_ready():
                 await websocket.send_json({
                     "type": "error",
-                    "message": "Index not loaded. Run 'python ingest.py' first."
+                    "message": "Index not loaded. Run 'python ingest.py' first.",
+                    "code": "INDEX_ERROR"
                 })
                 continue
             
             # Stream response
             try:
-                if stream_mode == "sentence":
-                    # Sentence-buffered streaming for TTS
-                    buffer = SentenceBuffer(min_chars=30)
-                    sentence_index = 0
-                    
-                    async for chunk in rag_chain.stream(
-                        question=question,
-                        top_k=top_k,
-                        language=language
-                    ):
-                        if chunk["type"] == "sources":
-                            await websocket.send_json(chunk)
-                        elif chunk["type"] == "token":
-                            # Buffer tokens into sentences
-                            sentence = buffer.add(chunk["token"])
-                            if sentence:
-                                await websocket.send_json({
-                                    "type": "sentence",
-                                    "text": sentence,
-                                    "index": sentence_index
-                                })
-                                sentence_index += 1
-                        elif chunk["type"] == "done":
-                            # Flush remaining buffer
-                            remaining = buffer.flush()
-                            if remaining:
-                                await websocket.send_json({
-                                    "type": "sentence",
-                                    "text": remaining,
-                                    "index": sentence_index
-                                })
-                            await websocket.send_json(chunk)
-                else:
-                    # Token-level streaming (original behavior)
-                    async for chunk in rag_chain.stream(
-                        question=question,
-                        top_k=top_k,
-                        language=language
-                    ):
-                        await websocket.send_json(chunk)
+                token_index = 0
+                async for chunk in rag_chain.stream(
+                    question=query,
+                    language=language
+                ):
+                    if chunk["type"] == "token":
+                        await websocket.send_json({
+                            "type": "token",
+                            "token": chunk["token"],
+                            "index": token_index
+                        })
+                        token_index += 1
+                    elif chunk["type"] == "done":
+                        await websocket.send_json({
+                            "type": "done",
+                            "total_tokens": token_index,
+                            "finish_reason": "stop"
+                        })
                         
             except Exception as e:
                 await websocket.send_json({
                     "type": "error",
-                    "message": str(e)
+                    "message": str(e),
+                    "code": "LLM_ERROR"
                 })
     
     except WebSocketDisconnect:

@@ -173,9 +173,9 @@ class RAGChain:
         system_prompt = get_system_prompt(language)
         user_prompt = build_rag_prompt(question, context, language)
         
-        # Step 3: Stream response
+        # Step 3: Stream response (pure relay, no buffering)
         start = time.time()
-        full_response = ""
+        token_count = 0
         
         async for token in self.llm.stream(
             prompt=user_prompt,
@@ -183,7 +183,7 @@ class RAGChain:
             temperature=settings.LLM_TEMPERATURE,
             max_tokens=settings.LLM_MAX_TOKENS
         ):
-            full_response += token
+            token_count += 1
             yield {
                 "type": "token",
                 "token": token
@@ -195,11 +195,8 @@ class RAGChain:
         # Yield completion info
         yield {
             "type": "done",
-            "full_response": full_response,
-            "timings": timings,
-            "language": language,
-            "model": self.llm.model_name,
-            "provider": self.llm.provider_name
+            "total_tokens": token_count,
+            "finish_reason": "stop"
         }
     
     @property
